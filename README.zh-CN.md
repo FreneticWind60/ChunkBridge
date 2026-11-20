@@ -215,7 +215,7 @@ SDK 在桌面、模拟器和真机上都有验证。要点：
 - `:library:testDebugUnitTest` 覆盖压缩包打包、容器魔数识别和世界根目录查找。
 - `ConversionEndToEndTest`（目录、检测、非世界文件拒绝、Java -> 基岩 -> Java、取消）在 API 27 与 API 30 上
   反复通过。
-- `RealWorldConversionTest` 在 vivo V2505A（Android 16 / API 36）上：1.4 GB 的 Java 1.20.1 世界用 562 秒
+- `RealWorldConversionTest` 在 vivo V2505A（Android 16 / API 36，开发者的主力机（穷比大学生哭哭））上：1.4 GB 的 Java 1.20.1 世界用 562 秒
   转成 `JAVA_1.20.0`；Java 26.3 世界用 5.2 秒转成 `BEDROCK_1.26.60`；写出的 `level.dat` 的 `DataVersion`
   正确，压缩包也包含应有的 `region/` 与 `db/` 结构。
 
