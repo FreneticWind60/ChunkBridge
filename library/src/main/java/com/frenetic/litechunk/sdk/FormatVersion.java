@@ -1,7 +1,7 @@
 package com.frenetic.litechunk.sdk;
 
 /**
- * One selectable target version, for example {@code JAVA_1_21_6} ("Java 1.21.6").
+ * One selectable target version, for example {@code JAVA_1.21.6} ("Java 1.21.6").
  * <p>
  * The {@code formatId} is the value to pass to {@link ConversionRequest.Builder#targetFormatId(String)}.
  */
@@ -15,7 +15,7 @@ public final class FormatVersion {
         this.displayName = displayName;
     }
 
-    /** Stable identifier used as the conversion target, e.g. {@code BEDROCK_1_21_120}. */
+    /** Stable identifier used as the conversion target, e.g. {@code BEDROCK_1.26.60}. */
     public String getFormatId() {
         return formatId;
     }

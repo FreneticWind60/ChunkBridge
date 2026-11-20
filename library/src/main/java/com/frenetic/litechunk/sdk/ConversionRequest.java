@@ -14,7 +14,7 @@ import java.io.File;
  * ConversionRequest request = new ConversionRequest.Builder()
  *         .inputUri(inputUri)                       // or .inputFile(worldFolder)
  *         .outputFile(new File(dir, "converted.mcworld"))
- *         .targetFormatId("BEDROCK_1_21_120")
+ *         .targetFormatId("BEDROCK_1.26.60")
  *         .convertEntities(true)
  *         .build();
  * }</pre>

@@ -1,5 +1,7 @@
 # ChunkBridge SDK
 
+**English** | [简体中文](README.zh-CN.md)
+
 Convert Minecraft worlds between **Java Edition and Bedrock Edition** from any Android app.
 
 ChunkBridge packages the [Chunker](https://github.com/HiveGamesOSS/Chunker) conversion engine as a self-contained
@@ -12,8 +14,8 @@ ChunkBridge.initialize(context);
 ChunkBridge.convert(
         new ConversionRequest.Builder()
                 .inputUri(inputUri)              // a world folder, a .zip or a .mcworld
-                .outputUri(outputUri)            // created through ACTION_CREATE_DOCUMENT or a File
-                .targetFormatId("BEDROCK_1_21_120")
+                .outputUri(outputUri)            // created through ACTION_CREATE_DOCUMENT, or a File
+                .targetFormatId("BEDROCK_1.26.60")
                 .build(),
         new ConversionCallback() {
             @Override public void onProgress(double fraction, Stage stage) { /* 0.0 .. 1.0 */ }
@@ -35,6 +37,9 @@ ChunkBridge.convert(
 
 Everything runs on-device. Localizations, block mappings and the Java font metrics are bundled, so a conversion never
 touches the network.
+
+The engine covers Java Edition and Bedrock Edition up to the newest versions known to the bundled Chunker sources
+(Java 26.3.0 / Bedrock 1.26.60 at the time of writing). Call `ChunkBridge.formats()` for the authoritative list.
 
 ## What the SDK does not do
 
@@ -79,7 +84,7 @@ dependencies {
 ### From a published repository
 
 ```bash
-./gradlew :api:publish :library:publish       # writes build/repo
+./gradlew :api:publish :library:publish                    # writes build/repo
 ./gradlew :api:publishToMavenLocal :library:publishReleasePublicationToMavenLocal
 ```
 
@@ -178,7 +183,7 @@ immediately afterwards can still answer `BUSY`; retry once instead of treating t
 
 | Code | Meaning |
 | --- | --- |
-| `INPUT_UNREADABLE` | The input missing, not readable, or the URI grant was revoked. |
+| `INPUT_UNREADABLE` | The input is missing, not readable, or the URI grant was revoked. |
 | `ARCHIVE_UNSUPPORTED` | The archive format is not supported (see the list above). |
 | `ARCHIVE_DAMAGED` | The archive is corrupt or uses an unsupported compression feature. |
 | `WORLD_NOT_FOUND` | The input contains no `level.dat`/Bedrock `db/` within three directory levels. |
@@ -213,6 +218,20 @@ foreground service with an invisible notification as a keep-alive abuse and kill
 - Extraction is capped at 500,000 entries, 8 GiB per entry and 32 GiB in total to stop decompression bombs.
 - Archives larger than the free space on `cacheDir` cannot be staged; free space is checked before writing.
 
+## Verification
+
+The SDK is tested on desktop, on emulators and on a physical phone. Highlights:
+
+- `:engine:smokeTest` and `:engine:roundTrip` convert a Java 1.20.5 fixture world to Bedrock and back.
+- `:library:testDebugUnitTest` covers the archive packer, container sniffing and world-root lookup.
+- `ConversionEndToEndTest` (catalog, detect, non-world rejection, Java -> Bedrock -> Java, cancel) passes repeatedly
+  on API 27 and API 30.
+- `RealWorldConversionTest` on a Vivo V2505A (Android 16 / API 36): a 1.4 GB Java 1.20.1 world converted to
+  `JAVA_1.20.0` in 562 s, and a Java 26.3 world converted to `BEDROCK_1.26.60` in 5.2 s; the written `level.dat`
+  reports the expected `DataVersion` and the archives contain the expected `region/` and `db/` layout.
+
+See [VERSION.md](VERSION.md) for the full report and known limitations.
+
 ## Building this repository
 
 ```bash
@@ -239,6 +258,16 @@ Desktop engine checks (no Android device needed):
 `:engine:roundTrip` looks for fixtures in `../Chunker-main/cli/src/test/resources/integration/worlds`, then
 `../../lib/Chunker-main/...`, or in `-Dchunker.fixtures=<dir>`. It converts Java 1.20.5 to Bedrock and back.
 
+Instrumentation tests need a connected device or emulator:
+
+```bash
+./gradlew :library:connectedDebugAndroidTest
+```
+
+`RealWorldConversionTest` reads archives from the app's external files directory
+(`/sdcard/Android/data/<test package>/files/`) and skips itself when they are absent, so player saves never have to be
+committed.
+
 Configuration cache: `:engine:engineDex` is a `JavaExec` task, so the configuration cache entry is discarded; the
 build still succeeds. Use `--no-configuration-cache` if you prefer a quiet log.
 
@@ -260,3 +289,4 @@ MIT. The conversion engine is Chunker (MIT, Hive Games); archive extraction uses
 
 - [docs/INTEGRATION.md](docs/INTEGRATION.md) — integration details, threading, storage layout, failure modes.
 - [docs/android-api-compat.md](docs/android-api-compat.md) — the Java 9+ API surface the engine must avoid on API 27.
+- [VERSION.md](VERSION.md) — release notes, verification matrix and known limitations.

@@ -43,7 +43,7 @@ public final class ConversionResult {
         return requestId;
     }
 
-    /** The {@code formatId} that was asked for, e.g. {@code BEDROCK_1_21_120}. */
+    /** The {@code formatId} that was asked for, e.g. {@code BEDROCK_1.26.60}. */
     public String getTargetFormatId() {
         return targetFormatId;
     }
