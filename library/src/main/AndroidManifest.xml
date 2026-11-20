@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- The conversion runs in a foreground service so Android does not kill it while the screen is off. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Keeps the CPU awake while the engine writes the converted world. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application>
+        <!--
+            Lives in its own process: the engine dex is loaded with a DexClassLoader there, and running it
+            out of the host process keeps a 1 MB dex plus its Chunker/LiteDB heap from being charged to the
+            host app's profile and lets cancel simply kill this process.
+        -->
+        <service
+            android:name="com.frenetic.litechunk.sdk.internal.SdkConversionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync"
+            android:process=":chunkbridge" />
+    </application>
+
+</manifest>

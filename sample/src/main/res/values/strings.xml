@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ChunkBridge SDK sample</string>
+    <string name="title">ChunkBridge SDK</string>
+    <string name="subtitle">Pick a world archive (zip, rar, 7z, tar, gz or .mcworld) or an extracted world folder, choose an output format, then convert.</string>
+    <string name="pick_input">1. Choose a world archive or folder</string>
+    <string name="pick_output">2. Choose where to save the result</string>
+    <string name="detect">Detect format</string>
+    <string name="convert">Convert</string>
+    <string name="cancel">Cancel</string>
+    <string name="entities">Convert entities (slower, keeps mobs and items)</string>
+    <string name="lean">Lean mode (less memory, drops lighting and containers)</string>
+    <string name="clear_log">Clear log</string>
+    <string name="no_input">No input picked yet.</string>
+    <string name="no_output">No output picked yet.</string>
+    <string name="missing_input">Pick a source world first.</string>
+    <string name="missing_output">Pick where to save the result first.</string>
+    <string name="suggested_name">converted</string>
+    <string name="ready">Ready.</string>
+</resources>

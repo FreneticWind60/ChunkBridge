@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- All names are chunkbridge_ prefixed: a library's resources are merged into the host app and a
+         generic name like "cancel" would collide with the host's own strings. -->
+    <string name="chunkbridge_notification_channel_name">World conversion</string>
+    <string name="chunkbridge_notification_channel_description">Shown while ChunkBridge converts a world.</string>
+    <string name="chunkbridge_notification_title">Converting world</string>
+    <string name="chunkbridge_notification_text">ChunkBridge is working in the background.</string>
+    <string name="chunkbridge_notification_cancel">Cancel</string>
+    <string name="chunkbridge_notification_done">Conversion finished</string>
+    <string name="chunkbridge_notification_failed">Conversion failed</string>
+</resources>

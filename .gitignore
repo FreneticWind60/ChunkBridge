@@ -1,0 +1,23 @@
+# Gradle / Android
+.gradle/
+build/
+local.properties
+captures/
+.kotlin/
+
+# IDE
+.idea/
+*.iml
+*.hprof
+
+# Generated engine payload (produced by :engine:engineDex and :engine:dumpFormats)
+library/src/main/assets/chunkbridge/engine.jar
+library/src/main/assets/chunkbridge/formats.json
+
+# Test fixtures / local worlds (never commit player data)
+local-worlds/
+*.mcworld
+
+# OS
+.DS_Store
+Thumbs.db
