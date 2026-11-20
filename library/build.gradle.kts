@@ -61,6 +61,7 @@ android {
     defaultConfig {
         minSdk = 27
         consumerProguardFiles("consumer-rules.pro")
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SDK_VERSION", "\"$sdkVersion\"")
     }
 
@@ -107,6 +108,8 @@ dependencies {
     api(project(":api"))
 
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }
 
 afterEvaluate {

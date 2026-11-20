@@ -39,6 +39,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Does the actual work in a separate {@code :chunkbridge} process.
@@ -64,14 +65,28 @@ public final class SdkConversionService extends Service {
     private static final long NOTIFICATION_INTERVAL_MS = 1000L;
     /** Time for the CANCELLED result to reach the caller's binder before this process dies. */
     private static final long CANCEL_KILL_DELAY_MS = 300L;
+    /**
+     * How long the service stays alive after its last job. A caller that converts and then immediately detects (or
+     * the other way round) sends its next request within milliseconds; stopping instantly raced with that request and
+     * the freshly queued job was dropped by {@code onDestroy}.
+     */
+    private static final long IDLE_STOP_DELAY_MS = 2000L;
     private static final long WAKE_LOCK_TIMEOUT_MS = 2L * 60L * 60L * 1000L;
 
     private final Handler main = new Handler(Looper.getMainLooper());
+    /** Posted with a delay so a request that follows a job closely can cancel the shutdown. */
+    private final Runnable idleStop = this::stopWhenIdle;
     private ExecutorService executor;
     private NotificationManager notifications;
     private PowerManager.WakeLock wakeLock;
 
-    private volatile boolean busy;
+    /**
+     * A conversion holds the engine for minutes and can be cancelled by killing the process; a detection only
+     * needs a few seconds. Keeping the two flags apart means "detect, then convert from the callback" works,
+     * while a second conversion is still refused instead of queued behind the first.
+     */
+    private volatile boolean converting;
+    private volatile boolean detecting;
     private volatile boolean cancelled;
     private volatile String currentRequestId;
     private volatile ResultReceiver currentReceiver;
@@ -79,13 +94,10 @@ public final class SdkConversionService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        executor = Executors.newSingleThreadExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "chunkbridge-job");
-            thread.setPriority(Thread.NORM_PRIORITY);
-            return thread;
-        });
+        executor = newWorker();
         notifications = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         createChannel();
+        Log.i(TAG, "Service created");
         // Leftovers can only come from a crash or a killed process: no job can be running before this point.
         JobWorkspace.sweep(this);
     }
@@ -105,25 +117,56 @@ public final class SdkConversionService extends Service {
             return START_NOT_STICKY;
         }
         boolean conversion = Protocol.ACTION_CONVERT.equals(intent.getAction());
+        // Any incoming request keeps the service alive: the idle stop is only a linger, not a verdict.
+        main.removeCallbacks(idleStop);
         if (conversion) {
             goForeground(job);
+            if (converting) {
+                // Do not stop the service: the running job owns it.
+                sendFailure(job, new ChunkBridgeException(ErrorCode.BUSY,
+                        "Another conversion is already running in this app."));
+                return START_NOT_STICKY;
+            }
+            converting = true;
+        } else {
+            if (converting || detecting) {
+                sendFailure(job, new ChunkBridgeException(ErrorCode.BUSY,
+                        "The conversion engine is still busy. Detect again once it is idle."));
+                return START_NOT_STICKY;
+            }
+            detecting = true;
         }
-        if (busy) {
-            // Do not stop the service: the running job owns it.
-            sendFailure(job, new ChunkBridgeException(ErrorCode.BUSY,
-                    "Another conversion is already running in this app."));
-            return START_NOT_STICKY;
-        }
-        busy = true;
-        cancelled = false;
         currentRequestId = job.requestId;
         currentReceiver = job.receiver;
-        executor.execute(() -> run(job));
+        cancelled = false;
+        Log.i(TAG, (conversion ? "Starting conversion " : "Starting detection ") + job.requestId);
+        try {
+            executor.execute(() -> run(job));
+        } catch (RejectedExecutionException stopping) {
+            // The request arrived while the service was being torn down by its idle stop. Start a fresh worker
+            // instead of dropping the job on the floor.
+            Log.i(TAG, "The old worker was shutting down; starting a new one");
+            executor = newWorker();
+            executor.execute(() -> run(job));
+        }
         return START_NOT_STICKY;
     }
 
     @Override
     public void onDestroy() {
+        Log.i(TAG, "Service destroyed");
+        main.removeCallbacks(idleStop);
+        // A job may have been queued but never started (the system can destroy the service right after a start
+        // request). Its caller would otherwise wait forever for a callback that cannot come.
+        ResultReceiver receiver = currentReceiver;
+        String requestId = currentRequestId;
+        if ((converting || detecting) && receiver != null && requestId != null) {
+            Bundle data = bundleWithRequestId(requestId);
+            data.putString(Protocol.KEY_ERROR_CODE, ErrorCode.CANCELLED.name());
+            data.putString(Protocol.KEY_ERROR_MESSAGE,
+                    "The conversion service stopped before the job finished.");
+            send(receiver, Protocol.RESULT_FAILED, data);
+        }
         releaseWakeLock();
         if (executor != null) {
             executor.shutdownNow();
@@ -141,6 +184,7 @@ public final class SdkConversionService extends Service {
     private void run(Job job) {
         long startedAt = SystemClock.elapsedRealtime();
         JobWorkspace workspace = null;
+        Log.i(TAG, "Job started " + job.requestId);
         try {
             if (cancelled) {
                 sendCancelled(job);
@@ -173,11 +217,15 @@ public final class SdkConversionService extends Service {
             sendProgress(job, 0.92D, "finish");
             long bytes = writeOutput(job, outputDirectory);
             deleteSourceDocument(job);
+            // Free the slot before the callback runs: "convert, then convert again from onCompleted" is a
+            // normal thing for a caller to do, and it must not be answered with BUSY.
+            releaseConversion();
             sendCompleted(job, bytes, startedAt, targetVersion);
         } catch (Throwable failure) {
             if (cancelled) {
                 sendCancelled(job);
             } else {
+                releaseConversion();
                 sendFailure(job, asException(failure));
             }
         } finally {
@@ -185,12 +233,50 @@ public final class SdkConversionService extends Service {
             if (workspace != null) {
                 workspace.delete();
             }
-            busy = false;
-            currentRequestId = null;
-            currentReceiver = null;
-            stopForeground(STOP_FOREGROUND_REMOVE);
-            stopSelf();
+            if (job.detection) {
+                detecting = false;
+                currentRequestId = null;
+                currentReceiver = null;
+            }
+            Log.i(TAG, "Job finished " + job.requestId);
+            requestIdleStop();
         }
+    }
+
+    /**
+     * Stops the service once it has nothing left to do, but only from the main thread and only after a short linger:
+     * a request that was already queued runs first, flips {@code converting} and keeps the service (and the workspace
+     * of the running job) alive. Stopping straight from the worker thread raced with {@link #onStartCommand} and
+     * interrupted fresh jobs.
+     */
+    private void requestIdleStop() {
+        main.removeCallbacks(idleStop);
+        main.postDelayed(idleStop, IDLE_STOP_DELAY_MS);
+    }
+
+    private void stopWhenIdle() {
+        if (converting || detecting) {
+            return;
+        }
+        Log.i(TAG, "Idle, stopping the service");
+        stopForeground(STOP_FOREGROUND_REMOVE);
+        stopSelf();
+    }
+
+    /** One worker thread: the engine keeps global state, so two jobs must never overlap. */
+    private static ExecutorService newWorker() {
+        return Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "chunkbridge-job");
+            thread.setPriority(Thread.NORM_PRIORITY);
+            return thread;
+        });
+    }
+
+    /** Marks the engine as idle again, so the next request is accepted instead of answered with BUSY. */
+    private void releaseConversion() {
+        converting = false;
+        currentRequestId = null;
+        currentReceiver = null;
     }
 
     /** Turns the input path or Uri into a real file (an archive) or folder (a world). */
@@ -266,6 +352,9 @@ public final class SdkConversionService extends Service {
             data.putString(Protocol.KEY_EDITION_ID, detection.formatId);
             data.putString(Protocol.KEY_EDITION_LABEL, detection.formatLabel);
             data.putString(Protocol.KEY_VERSION, detection.version);
+            // Clear the flag before delivering: a callback that immediately starts a conversion must not see
+            // the engine as still busy.
+            detecting = false;
             send(job, Protocol.RESULT_DETECTED, data);
         } catch (Throwable failure) {
             throw new ChunkBridgeException(ErrorCode.WORLD_NOT_FOUND,
@@ -408,7 +497,7 @@ public final class SdkConversionService extends Service {
     // ---------------------------------------------------------------- cancel
 
     private void cancel(String requestId) {
-        if (!busy || requestId == null || !requestId.equals(currentRequestId)) {
+        if (!converting || requestId == null || !requestId.equals(currentRequestId)) {
             return;
         }
         cancelled = true;
@@ -525,6 +614,13 @@ public final class SdkConversionService extends Service {
             return new ChunkBridgeException(ErrorCode.OUTPUT_UNWRITABLE,
                     "A file or folder could not be accessed.", Extractor.describe(failure), failure);
         }
+        if (isInterrupted(failure)) {
+            // The only thing that interrupts the worker is this service shutting down, which is not something the
+            // caller did wrong: report it as a cancellation instead of an internal error.
+            return new ChunkBridgeException(ErrorCode.CANCELLED,
+                    "The conversion was interrupted because the service stopped.", Extractor.describe(failure),
+                    failure);
+        }
         String message = failure.getMessage();
         if (message != null && (message.contains("ENOSPC") || message.contains("No space left"))) {
             return new ChunkBridgeException(ErrorCode.INSUFFICIENT_STORAGE,
@@ -532,6 +628,19 @@ public final class SdkConversionService extends Service {
         }
         return new ChunkBridgeException(ErrorCode.INTERNAL,
                 "The conversion failed unexpectedly.", Extractor.describe(failure), failure);
+    }
+
+    /** True when the failure, or anything in its cause chain, is an interrupt. */
+    private static boolean isInterrupted(Throwable failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof InterruptedException || current instanceof java.io.InterruptedIOException) {
+                return true;
+            }
+            if (current.getCause() == current) {
+                break;
+            }
+        }
+        return false;
     }
 
     // ---------------------------------------------------------------- notification

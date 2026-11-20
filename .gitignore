@@ -21,3 +21,6 @@ local-worlds/
 # OS
 .DS_Store
 Thumbs.db
+
+# Instrumentation fixtures: local player worlds, never committed
+library/src/androidTest/assets/*.zip

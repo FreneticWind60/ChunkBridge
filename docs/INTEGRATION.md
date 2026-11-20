@@ -157,6 +157,9 @@ Because the process is killed:
 - Any queued request in that process is lost; the host app should treat its own pending requests as failed.
 - Leftover job directories are removed on the next service start.
 - A `.part` output file may remain; delete it when you receive a failure/cancellation if you care.
+- The next request may be answered with `BUSY` for up to about a second after `onCancelled`, because the old process
+  is still exiting and still reports itself busy. Retry once after a short delay instead of treating that `BUSY` as
+  fatal.
 
 If the process is killed by the OS while a conversion is running, no callback is delivered. Track conversions in the
 host app (for example in a `ViewModel`) and verify the output's existence when the app returns to the foreground.
@@ -166,8 +169,10 @@ host app (for example in a `ViewModel`) and verify the output's existence when t
 One conversion per process at a time. A second `convert` while one is running fails with `BUSY` — it is not queued.
 The host app should serialize conversions behind its own queue.
 
-Detection requests share the service but are dispatched on the same single thread; a detection issued during a
-conversion waits for it. Avoid calling `detect` while a conversion is in progress.
+Detection is tracked separately from conversion, so `detect` right after `onCompleted`/`onFailed` works, and a quick
+`detect` followed by `convert` from inside its callback works too. A detection issued while a conversion is running
+fails immediately with `BUSY` instead of waiting: the conversion may take minutes, and a queued detection would
+otherwise appear to hang. Detect first, then start the conversion.
 
 ## Error recovery
 

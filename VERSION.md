@@ -50,7 +50,9 @@ First standalone release of the SDK, split out of the LiteChunk app.
   fails with `FOREGROUND_NOT_ALLOWED`.
 - Android 15+ caps `dataSync` foreground services at six hours per day; the SDK runs one conversion per request, so a
   large batch needs a user-visible flow and its own scheduling.
-- One conversion per process at a time (`BUSY` otherwise); detection waits behind a running conversion.
+- One conversion per process at a time (`BUSY` otherwise); a detection requested during a conversion fails with `BUSY`
+  immediately instead of waiting, and a request sent right after a cancellation may see `BUSY` for about a second
+  while the old process exits.
 - Cancellation is a process kill, so a `.part` output may be left behind and the callback is best-effort.
 - No per-world progress detail beyond `Stage`; no estimated remaining time.
 - LevelDB-backed Bedrock worlds are written with the bundled leveldb library; worlds produced by very new Bedrock
@@ -59,3 +61,17 @@ First standalone release of the SDK, split out of the LiteChunk app.
   a larger heap reduces retries).
 - `:engine:roundTrip` needs external Chunker fixtures and skips cleanly when they are absent; `:engine:engineDex` is a
   `JavaExec` task, so Gradle discards its configuration cache entry (the build still succeeds).
+
+### Verification
+
+- `:engine:smokeTest` and `:engine:roundTrip` (with local Chunker fixtures) pass.
+- `:library:testDebugUnitTest`: 8 JVM tests for `WorldPacker`, `Container` sniffing and `Worlds` lookup.
+- Instrumentation (`ConversionEndToEndTest`, 5 tests: catalog, detect, non-world rejection, Java->Bedrock->Java round
+  trip, cancel) passes repeatedly on API 27 and API 30 emulators. API 27 is the `minSdk` floor and has no foreground
+  service type APIs; API 30 covers the legacy `startForeground` path.
+- A host app built with R8 (`:sample:assembleRelease`) keeps `ChunkerEngine` and `SdkConversionService` (checked with
+  `dexdump`), so the consumer rules work when minified.
+- The AAR contains `assets/chunkbridge/{engine.jar,formats.json,engine-res/}` and no engine classes in `classes.jar`
+  (the engine must only live in the dex asset).
+- Not verified on API 31+ devices: `startForegroundService` behaviour, the `dataSync` six-hour cap and the Android 13
+  notification permission are documented from the platform rules, not from a device run.

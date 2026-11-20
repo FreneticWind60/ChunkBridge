@@ -169,7 +169,8 @@ fraction passed to `onProgress` is monotonic but not linear; do not assume a fix
 `cancel()` stops the `:chunkbridge` process, which is the only way to abort the engine mid-conversion. The callback
 receives `onCancelled` if the service is still alive when the request arrives; a partially written output file
 (`*.part`) is removed by the next service start. Cancelling is intentionally best-effort: a conversion may still
-finish if it was already in its final packing step.
+finish if it was already in its final packing step. The process exits a moment after the callback, so a request sent
+immediately afterwards can still answer `BUSY`; retry once instead of treating that as fatal.
 
 ## Errors
 
@@ -186,7 +187,7 @@ finish if it was already in its final packing step.
 | `OUTPUT_EXISTS` | `outputFile` exists and `overwriteExisting(false)`. |
 | `INSUFFICIENT_STORAGE` | The device ran out of space while writing. |
 | `OUT_OF_MEMORY` | The conversion process ran out of heap. |
-| `BUSY` | Another conversion is already running in the process. |
+| `BUSY` | A conversion is running, or a detection was requested during one. Retry after it ends. |
 | `CANCELLED` | The request was cancelled. |
 | `ENGINE_UNAVAILABLE` | The engine dex could not be loaded (usually a damaged or stripped AAR). |
 | `FOREGROUND_NOT_ALLOWED` | Android refused to start the foreground service (see below). |

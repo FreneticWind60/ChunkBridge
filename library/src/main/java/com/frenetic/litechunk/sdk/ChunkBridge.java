@@ -230,9 +230,11 @@ public final class ChunkBridge {
                                 resultData.getString(Protocol.KEY_EDITION_LABEL),
                                 resultData.getString(Protocol.KEY_VERSION));
                         callback.onFinished(result, null);
-                    } else {
+                    } else if (resultCode == Protocol.RESULT_FAILED) {
                         callback.onFinished(null, asException(resultData));
                     }
+                    // STARTED and PROGRESS are part of the shared protocol; a detection has nothing to say
+                    // about either, so they are ignored instead of being mistaken for a failure.
                 } catch (RuntimeException broken) {
                     Log.e(TAG, "Detection callback threw", broken);
                 }
