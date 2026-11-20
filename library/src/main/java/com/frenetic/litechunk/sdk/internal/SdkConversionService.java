@@ -681,6 +681,18 @@ public final class SdkConversionService extends Service {
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setProgress(100, Math.max(0, Math.min(100, percent)), percent <= 0);
+        // The platform derives a content intent from the host app's launcher activity when none is set. Packages
+        // without one (test hosts, launcher-less shells) make that lookup return null and the notification then
+        // fails to build, so always hand it an explicit intent: open the host app when it has a launcher.
+        Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        if (launch != null) {
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            builder.setContentIntent(PendingIntent.getActivity(this, 0, launch,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+        } else {
+            builder.setContentIntent(PendingIntent.getService(this, 0, new Intent(this, SdkConversionService.class),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+        }
         Intent cancelIntent = new Intent(this, SdkConversionService.class)
                 .setAction(Protocol.ACTION_CANCEL)
                 .putExtra(Protocol.EXTRA_REQUEST_ID, job.requestId);

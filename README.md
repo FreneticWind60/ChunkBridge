@@ -204,6 +204,8 @@ On Android 15+ a `dataSync` foreground service has a six-hour daily quota. Each 
 only matters for very large batches; keep a user-visible screen for long conversions anyway.
 
 On Android 13+, request `POST_NOTIFICATIONS` before converting if you want the progress notification to be visible.
+Request it even if you do not care about the notification: some vendor ROMs (Vivo OriginOS was verified) treat a
+foreground service with an invisible notification as a keep-alive abuse and kill the process within seconds.
 
 ## Limits
 

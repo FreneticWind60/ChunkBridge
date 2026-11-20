@@ -117,7 +117,10 @@ The library manifest declares:
 ```
 
 `POST_NOTIFICATIONS` is only needed for the progress notification (Android 13+); the conversion works without it,
-but Android 13+ hides the notification if the permission is not granted.
+but Android 13+ hides the notification if the permission is not granted. Request it before converting anyway: some
+vendor ROMs (verified on Vivo OriginOS / API 36) treat a foreground service whose notification is not visible as a
+keep-alive abuse and kill the package within seconds (`am_kill ... due to WithOutCancelNoti`). With the permission
+granted the same conversion runs for hours.
 
 The service is exported=false and runs with `foregroundServiceType="dataSync"`. The host app must not declare a
 service with the same class name or a conflicting `android:process`.

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-only manifest: the instrumentation tests convert real worlds in the host app process, and a 1.4 GB Java world
+  needs a larger heap than the default. Release builds merge the library manifest without this attribute, so a host app
+  keeps control over largeHeap.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application android:largeHeap="true">
+
+        <!-- Debug-only: keeps the package visible during long instrumentation conversions. See KeepAliveActivity. -->
+        <activity
+            android:name="com.frenetic.litechunk.sdk.debug.KeepAliveActivity"
+            android:exported="true"
+            android:theme="@android:style/Theme.Material.Light" />
+
+    </application>
+
+</manifest>

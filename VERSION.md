@@ -48,6 +48,11 @@ First standalone release of the SDK, split out of the LiteChunk app.
 
 - Android 12+ requires the foreground service to be started while the app is in the foreground; otherwise the request
   fails with `FOREGROUND_NOT_ALLOWED`.
+- Android 13+ requires `POST_NOTIFICATIONS` for the progress notification to be visible. Request it even when the
+  notification is not interesting to the user: some vendor ROMs (verified on Vivo OriginOS / API 36) treat a foreground
+  service whose notification cannot be seen as a keep-alive abuse and kill the package within seconds
+  (`am_kill ... due to WithOutCancelNoti`). For the same reason, a long conversion started while the host app is in the
+  background may be killed by such ROMs; keep the host visible for the duration.
 - Android 15+ caps `dataSync` foreground services at six hours per day; the SDK runs one conversion per request, so a
   large batch needs a user-visible flow and its own scheduling.
 - One conversion per process at a time (`BUSY` otherwise); a detection requested during a conversion fails with `BUSY`
@@ -73,5 +78,11 @@ First standalone release of the SDK, split out of the LiteChunk app.
   `dexdump`), so the consumer rules work when minified.
 - The AAR contains `assets/chunkbridge/{engine.jar,formats.json,engine-res/}` and no engine classes in `classes.jar`
   (the engine must only live in the dex asset).
-- Not verified on API 31+ devices: `startForegroundService` behaviour, the `dataSync` six-hour cap and the Android 13
-  notification permission are documented from the platform rules, not from a device run.
+- Real saves on a physical device (Vivo V2505A, Android 16 / API 36), run through `RealWorldConversionTest`:
+  - Java 1.20.1 world, 1.4 GB zip (1,418,765,922 bytes) -> `JAVA_1.20.0`: 562 s, output 504,112,174 bytes with 302
+    entries (`level.dat`, `region/*.mca`, `DIM1/`, `DIM-1/`); the written `level.dat` reports `DataVersion` 3463, i.e.
+    Minecraft 1.20.0.
+  - Java 26.3 world, 1.1 MB zip -> `BEDROCK_1.26.60`: 5.2 s, output 605,387 bytes containing `db/*.ldb`, `db/CURRENT`,
+    `db/MANIFEST-*` and `level.dat`.
+- The `dataSync` six-hour cap (Android 15+) is still documented from the platform rules, not from a device run: the
+  runs above stay well under it.

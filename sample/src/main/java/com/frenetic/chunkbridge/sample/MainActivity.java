@@ -43,6 +43,7 @@ public class MainActivity extends Activity {
 
     private static final int REQUEST_INPUT = 1001;
     private static final int REQUEST_OUTPUT = 1002;
+    private static final int REQUEST_NOTIFICATIONS = 1003;
 
     private final List<String> formatIds = new ArrayList<>();
     private final List<String> formatNames = new ArrayList<>();
@@ -69,6 +70,7 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         ChunkBridge.initialize(this);
+        requestNotificationPermission();
 
         inputLabel = findViewById(R.id.input_label);
         outputLabel = findViewById(R.id.output_label);
@@ -98,6 +100,22 @@ public class MainActivity extends Activity {
             }
         });
         updateRunningState(false);
+    }
+
+    /**
+     * The conversion notification is a foreground service requirement on Android 13+. Some vendor ROMs kill a
+     * foreground service whose notification is not visible, so ask for the permission up front instead of shipping a
+     * conversion that dies after a minute on those devices.
+     */
+    private void requestNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT < 33) {
+            return;
+        }
+        if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, REQUEST_NOTIFICATIONS);
     }
 
     private void populateFormats() {
