@@ -71,9 +71,9 @@ mavenLocal()
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.0")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
     // 会通过传递依赖引入，这里只是显式列出
-    // implementation("com.frenetic.chunkbridge:api:1.0.0")
+    // implementation("com.frenetic.chunkbridge:api:1.0.1")
 }
 ```
 
@@ -94,9 +94,50 @@ dependencies {
 ```kotlin
 dependencies {
     implementation(files("libs/library-release.aar"))
-    implementation(files("libs/api-1.0.0.jar"))   // com.frenetic.chunkbridge:api:1.0.0
+    implementation(files("libs/api-1.0.1.jar"))   // com.frenetic.chunkbridge:api:1.0.1
 }
 ```
+
+### 以 git submodule 接入（复合构建）
+
+LiteChunk 自己就是这么用的：SDK 仓库作为 submodule 放在 `chunkbridge/`，Gradle 直接从源码构建，改引擎不需要
+先发布 AAR。
+
+```bash
+git submodule add https://github.com/FreneticWind60/ChunkBridge.git chunkbridge
+git submodule update --init --recursive
+```
+
+```kotlin
+// settings.gradle.kts
+includeBuild("chunkbridge") {
+    dependencySubstitution {
+        substitute(module("com.frenetic.chunkbridge:chunkbridge")).using(project(":library"))
+        substitute(module("com.frenetic.chunkbridge:api")).using(project(":api"))
+    }
+}
+```
+
+```kotlin
+// app/build.gradle.kts —— 版本号会被忽略，复合构建里的工程优先
+dependencies {
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+}
+```
+
+同时开发两个仓库时，把 submodule 路径做成可覆盖的，避免必须把 SDK 放在 `chunkbridge/`：
+
+```kotlin
+// settings.gradle.kts
+val chunkbridgeDir = providers.gradleProperty("chunkbridge.sdk.dir").getOrElse("chunkbridge")
+includeBuild(file(chunkbridgeDir)) { /* 上面的替换规则 */ }
+```
+
+```bash
+./gradlew :app:assembleDebug -Pchunkbridge.sdk.dir=../ChunkBridge
+```
+
+复合构建需要机器上有 SDK 源码，不能只用 AAR；CI 也必须先 clone（或更新 submodule）再构建 App。
 
 ## 用法
 
@@ -167,6 +208,28 @@ handle.cancel();
 `cancel()` 会结束 `:chunkbridge` 进程，这是中断引擎的唯一方式。若请求到达时服务仍存活，回调会收到 `onCancelled`；
 写到一半的输出（`*.part`）会在下次服务启动时清理。取消是尽力而为的：如果转换已经进入最后的打包步骤，仍可能
 完成。回调之后进程还会存活片刻，因此紧接着发出的请求可能仍收到 `BUSY`，重试一次即可，不必当作致命错误。
+
+### 5. 读取与修改 level.dat
+
+存档详情页用这两个调用。它们同样跑在 `:chunkbridge` 进程，不需要通知、不可取消；读取只需几毫秒。
+
+```java
+ChunkBridge.inspectLevel(worldDirectory, (info, error) -> {
+    if (error != null) return;                 // 目录里没有 level.dat 时是 WORLD_NOT_FOUND
+    for (LevelField field : info.fields) {
+        // field.id 是 NBT 键；field.kind（KIND_TEXT/KIND_INT/...）决定怎么渲染
+    }
+});
+
+Map<String, String> changes = new HashMap<>();
+changes.put("LevelName", "新名字");
+ChunkBridge.applyLevel(worldDirectory, changes, (info, error) -> {
+    // info 是写入后重新读取的结果，页面可以直接刷新，不必再调一次
+});
+```
+
+`worldDirectory` 必须是含 `level.dat` 的目录；从 `.zip` / `.mcworld` 里取出、改完再写回压缩包由调用方负责
+（LiteChunk 用 `Archive.rewrite`）。值一律是字符串，因为引擎只暴露一份允许键列表，并按游戏期望的类型写入。
 
 ## 错误码
 

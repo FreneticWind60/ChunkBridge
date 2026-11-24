@@ -22,9 +22,9 @@ Consequences:
 - The engine's static state, its ~1 MB dex and its memory budget live in the `:chunkbridge` process. Killing that
   process (cancellation, "force stop" from the user, OS low-memory kill) never corrupts the host app process.
 - `ChunkBridge.formats()` runs in the host process and never loads the engine.
-- `ChunkBridge.detect(...)` and `ChunkBridge.convert(...)` hand work to the service process over an explicit
-  `Intent` + `ResultReceiver` pair. There is no AIDL and no bound service, so the SDK works from any process of the
-  host app.
+- `ChunkBridge.detect(...)`, `ChunkBridge.convert(...)`, `ChunkBridge.inspectLevel(...)` and
+  `ChunkBridge.applyLevel(...)` hand work to the service process over an explicit `Intent` + `ResultReceiver` pair.
+  There is no AIDL and no bound service, so the SDK works from any process of the host app.
 - The host app and the SDK must be in the same APK; the SDK's service is declared by the library manifest and
   merged into the host manifest automatically.
 
@@ -87,6 +87,22 @@ conversion. It is ignored for world-folder inputs.
 
 `packAsMcworld` is not a setting: the output is always a zip archive. Rename it `.mcworld` for Bedrock or `.zip` for
 Java; `ChunkBridge.defaultExtension(formatId)` returns the conventional one.
+
+## World details (level.dat)
+
+`inspectLevel` and `applyLevel` read and rewrite `level.dat` only — no chunks are touched, so no placeholder blocks
+appear and the conversion budget does not apply. They are synchronous from the caller's point of view: the callback
+fires on the main thread a few milliseconds later.
+
+- The directory must contain `level.dat`. Extract it from a `.zip` / `.mcworld` yourself (LiteChunk uses a single
+  pass `Archive.rewrite`), call the SDK on the temporary directory, then write the archive back. The SDK will not
+  unpack a multi-gigabyte archive for a name edit.
+- `LevelField` values are strings. `kind` (`KIND_TEXT`, `KIND_INT`, `KIND_LONG`, `KIND_BOOL`, `KIND_ENUM`,
+  `KIND_READ_ONLY`) tells you which editor to show; `KIND_ENUM` fields must be written as one of `optionIds`.
+- `applyLevel` takes the changed ids only; unknown ids are ignored by the engine. The returned `LevelInfo` is the
+  file re-read after the write.
+- `inspectLevel`/`applyLevel` do not need `POST_NOTIFICATIONS` or a foreground service. They participate in the busy
+  check: a running conversion answers `BUSY`, but level work and subsequent conversions do not block each other.
 
 ## Storage layout
 
@@ -175,7 +191,8 @@ The host app should serialize conversions behind its own queue.
 Detection is tracked separately from conversion, so `detect` right after `onCompleted`/`onFailed` works, and a quick
 `detect` followed by `convert` from inside its callback works too. A detection issued while a conversion is running
 fails immediately with `BUSY` instead of waiting: the conversion may take minutes, and a queued detection would
-otherwise appear to hang. Detect first, then start the conversion.
+otherwise appear to hang. Detect first, then start the conversion. `inspectLevel`/`applyLevel` use a third flag, so
+a details screen can be opened from `onCompleted` as well; only a running conversion makes them answer `BUSY`.
 
 ## Error recovery
 
@@ -198,6 +215,41 @@ otherwise appear to hang. Detect first, then start the conversion.
    Android 15 quota).
 
 The bundled `sample` app does all of the above and is the reference integration.
+
+## Using a composite build (git submodule)
+
+LiteChunk does not consume a published AAR. It adds this repository as a submodule and includes the build directly:
+
+```bash
+git submodule add https://github.com/FreneticWind60/ChunkBridge.git chunkbridge
+git submodule update --init --recursive
+```
+
+```kotlin
+// settings.gradle.kts
+val chunkbridgeDir = providers.gradleProperty("chunkbridge.sdk.dir").getOrElse("chunkbridge")
+includeBuild(file(chunkbridgeDir)) {
+    dependencySubstitution {
+        substitute(module("com.frenetic.chunkbridge:chunkbridge")).using(project(":library"))
+        substitute(module("com.frenetic.chunkbridge:api")).using(project(":api"))
+    }
+}
+```
+
+The host app then depends on the normal coordinates (`com.frenetic.chunkbridge:chunkbridge:1.0.1`); Gradle replaces
+them with the included project, so the version string only has to be a version that exists. Working on both
+repositories at once is `-Pchunkbridge.sdk.dir=../ChunkBridge` instead of a submodule checkout.
+
+Practical notes:
+
+- A composite build compiles the whole SDK, including the engine sources; the first build is slower than consuming
+  an AAR, and `mergeEngineAssets` runs `:engine:engineDex` each time the engine sources change.
+- `chunkbridge/src/main/assets/chunkbridge/engine-res/` is committed source (fonts and the height pack), so a plain
+  submodule checkout is enough; nothing has to be generated before `git clone --recursive`.
+- CI must check out submodules (`actions/checkout` with `submodules: recursive`, or `git submodule update --init`)
+  before invoking Gradle.
+- Do not add both the published AAR and the `includeBuild` — the substitution would silently lose to whichever
+  appears first on the classpath and you would debug the wrong engine.
 
 ## Troubleshooting
 

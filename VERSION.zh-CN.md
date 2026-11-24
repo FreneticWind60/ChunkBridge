@@ -2,6 +2,25 @@
 
 [English](VERSION.md) | **简体中文**
 
+## 1.0.1
+
+补上存档详情所需的 level.dat 读写接口。LiteChunk 以前直接调引擎做这件事，现在可以直接去掉引擎模块、只留 SDK。
+
+### 变化
+
+- 新增 `ChunkBridge.inspectLevel(File, LevelCallback)` 与
+  `ChunkBridge.applyLevel(File, Map<String, String>, LevelCallback)`，在 `:chunkbridge` 进程执行，原样返回引擎的
+  `LevelInfo`（`LevelField`、`LevelNote`）。
+- level 读写有独立的占用标志（`editing`）：转换进行中仍回 `BUSY`，但可以在 `LevelCallback` 里直接发起转换，
+  反过来也一样——详情页正是这样用的。
+- `LevelInfo` 以 `Bundle` 跨进程传递（`internal/LevelBundle`），因为 `api` 是纯 Java 库，不能实现 `Parcelable`。
+- 没有删除任何公开 API；1.0.1 与 1.0.0 源码、二进制兼容。引擎负载没变（仍是 `1.21.0`），AAR 只多了这几个门面方法。
+
+### 接入方式
+
+README 里写了两种：发布 AAR / `mavenLocal`，或 git submodule + `includeBuild`——LiteChunk 用的是后者，
+不需要任何发布步骤。
+
 ## 1.0.0
 
 SDK 的首个独立版本，从 LiteChunk 应用中拆分而来。

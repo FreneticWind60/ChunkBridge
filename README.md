@@ -75,9 +75,9 @@ mavenLocal()
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.0")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
     // Pulled in transitively; listed here only for clarity.
-    // implementation("com.frenetic.chunkbridge:api:1.0.0")
+    // implementation("com.frenetic.chunkbridge:api:1.0.1")
 }
 ```
 
@@ -99,9 +99,51 @@ host class loader before the engine dex is attached:
 ```kotlin
 dependencies {
     implementation(files("libs/library-release.aar"))
-    implementation(files("libs/api-1.0.0.jar"))   // com.frenetic.chunkbridge:api:1.0.0
+    implementation(files("libs/api-1.0.1.jar"))   // com.frenetic.chunkbridge:api:1.0.1
 }
 ```
+
+### From a git submodule (composite build)
+
+This is how LiteChunk consumes the SDK: the repository sits in `chunkbridge/` as a submodule and Gradle builds it
+from source, so a change to the engine reaches the app without publishing anything.
+
+```bash
+git submodule add https://github.com/FreneticWind60/ChunkBridge.git chunkbridge
+git submodule update --init --recursive
+```
+
+```kotlin
+// settings.gradle.kts
+includeBuild("chunkbridge") {
+    dependencySubstitution {
+        substitute(module("com.frenetic.chunkbridge:chunkbridge")).using(project(":library"))
+        substitute(module("com.frenetic.chunkbridge:api")).using(project(":api"))
+    }
+}
+```
+
+```kotlin
+// app/build.gradle.kts — the version is ignored, the included build wins
+dependencies {
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+}
+```
+
+Keep the submodule path configurable when you work on both repositories at once:
+
+```kotlin
+// settings.gradle.kts
+val chunkbridgeDir = providers.gradleProperty("chunkbridge.sdk.dir").getOrElse("chunkbridge")
+includeBuild(file(chunkbridgeDir)) { /* substitution as above */ }
+```
+
+```bash
+./gradlew :app:assembleDebug -Pchunkbridge.sdk.dir=../ChunkBridge
+```
+
+A composite build needs the SDK sources on the machine; it does not work from an AAR, and CI has to clone the
+repository (or check out the submodule) before building the app.
 
 ## Usage
 
@@ -176,6 +218,30 @@ receives `onCancelled` if the service is still alive when the request arrives; a
 (`*.part`) is removed by the next service start. Cancelling is intentionally best-effort: a conversion may still
 finish if it was already in its final packing step. The process exits a moment after the callback, so a request sent
 immediately afterwards can still answer `BUSY`; retry once instead of treating that as fatal.
+
+### 5. Read and write level.dat
+
+Two more calls drive a world-details screen. They run in the same `:chunkbridge` process, need no notification and
+are not cancellable; reading is a few milliseconds.
+
+```java
+ChunkBridge.inspectLevel(worldDirectory, (info, error) -> {
+    if (error != null) return;                 // WORLD_NOT_FOUND when the directory has no level.dat
+    for (LevelField field : info.fields) {
+        // field.id is the NBT key, field.kind (KIND_TEXT/KIND_INT/...) says how to render it
+    }
+});
+
+Map<String, String> changes = new HashMap<>();
+changes.put("LevelName", "Renamed");
+ChunkBridge.applyLevel(worldDirectory, changes, (info, error) -> {
+    // info is the file re-read after the write, so the screen can refresh without a second call
+});
+```
+
+`worldDirectory` must be a directory that contains `level.dat`; extracting it from a `.zip` / `.mcworld` and putting
+it back is the caller's job (LiteChunk does it with `Archive.rewrite`). Values are plain strings because the engine
+only exposes an allow list of keys and writes each one with the type the game expects.
 
 ## Errors
 

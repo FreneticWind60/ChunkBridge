@@ -11,6 +11,10 @@ public final class Protocol {
 
     public static final String ACTION_CONVERT = "com.frenetic.litechunk.sdk.action.CONVERT";
     public static final String ACTION_DETECT = "com.frenetic.litechunk.sdk.action.DETECT";
+    /** Reads the {@code level.dat} fields of a world folder. */
+    public static final String ACTION_LEVEL_INSPECT = "com.frenetic.litechunk.sdk.action.LEVEL_INSPECT";
+    /** Writes edited {@code level.dat} fields back to a world folder. */
+    public static final String ACTION_LEVEL_APPLY = "com.frenetic.litechunk.sdk.action.LEVEL_APPLY";
     /** Sent to the service to stop the running job. Carries only {@link #EXTRA_REQUEST_ID}. */
     public static final String ACTION_CANCEL = "com.frenetic.litechunk.sdk.action.CANCEL";
 
@@ -29,6 +33,12 @@ public final class Protocol {
     public static final String EXTRA_DELETE_SOURCE = "com.frenetic.litechunk.sdk.extra.DELETE_SOURCE";
     public static final String EXTRA_NOTIFICATION_TITLE = "com.frenetic.litechunk.sdk.extra.NOTIFICATION_TITLE";
     public static final String EXTRA_NOTIFICATION_TEXT = "com.frenetic.litechunk.sdk.extra.NOTIFICATION_TEXT";
+    /** Absolute path of a folder that contains {@code level.dat}. */
+    public static final String EXTRA_LEVEL_PATH = "com.frenetic.litechunk.sdk.extra.LEVEL_PATH";
+    /** Field ids to write, parallel to {@link #EXTRA_LEVEL_VALUES}. */
+    public static final String EXTRA_LEVEL_IDS = "com.frenetic.litechunk.sdk.extra.LEVEL_IDS";
+    /** New values, parallel to {@link #EXTRA_LEVEL_IDS}. */
+    public static final String EXTRA_LEVEL_VALUES = "com.frenetic.litechunk.sdk.extra.LEVEL_VALUES";
 
     /** Job accepted and about to stage its input. */
     public static final int RESULT_STARTED = 1;
@@ -41,6 +51,8 @@ public final class Protocol {
     public static final int RESULT_CANCELLED = 5;
     /** Carries the detected edition and version. */
     public static final int RESULT_DETECTED = 6;
+    /** Carries {@link #KEY_LEVEL_INFO}: the fields of a {@code level.dat}, after reading or writing. */
+    public static final int RESULT_LEVEL = 7;
 
     public static final String KEY_REQUEST_ID = "requestId";
     public static final String KEY_FRACTION = "fraction";
@@ -57,6 +69,8 @@ public final class Protocol {
     public static final String KEY_ERROR_CODE = "errorCode";
     public static final String KEY_ERROR_MESSAGE = "errorMessage";
     public static final String KEY_ERROR_DETAIL = "errorDetail";
+    /** A {@link android.os.Bundle} produced by {@code LevelBundle}. */
+    public static final String KEY_LEVEL_INFO = "levelInfo";
 
     private Protocol() {
     }

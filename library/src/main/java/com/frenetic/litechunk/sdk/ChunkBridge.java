@@ -9,11 +9,14 @@ import android.os.Looper;
 import android.os.ResultReceiver;
 import android.util.Log;
 
+import com.frenetic.litechunk.api.LevelInfo;
+import com.frenetic.litechunk.sdk.internal.LevelBundle;
 import com.frenetic.litechunk.sdk.internal.Protocol;
 import com.frenetic.litechunk.sdk.internal.SdkConversionService;
 
 import java.io.File;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -254,8 +257,99 @@ public final class ChunkBridge {
         }
     }
 
-    /** Starts the service, returning the failure instead of throwing so callbacks stay the only error channel. */
-    private static Throwable start(Context context, Intent intent, boolean foreground) {
+    /**
+     * Reads the editable fields of a world folder's {@code level.dat}.
+     * <p>
+     * The folder must contain {@code level.dat}; pulling it out of a {@code .zip} / {@code .mcworld} is the caller's
+     * job, because rewriting an archive is an I/O concern the SDK does not own.
+     *
+     * @param worldDirectory a folder containing {@code level.dat}.
+     * @param callback       receives the fields on the main thread.
+     * @throws IllegalStateException    when the SDK was not initialized.
+     * @throws IllegalArgumentException when the folder or callback is null.
+     */
+    public static void inspectLevel(File worldDirectory, LevelCallback callback) {
+        level(Protocol.ACTION_LEVEL_INSPECT, worldDirectory, null, callback);
+    }
+
+    /**
+     * Writes edited {@code level.dat} fields back and returns the refreshed world details.
+     * <p>
+     * Field ids and the values they accept come from {@link LevelInfo#fields}; the engine rejects ids it does not
+     * expose, so a stale screen cannot corrupt a tag type.
+     *
+     * @param worldDirectory a folder containing {@code level.dat}.
+     * @param changes        field id to new value.
+     * @param callback       receives the refreshed fields on the main thread.
+     * @throws IllegalStateException    when the SDK was not initialized.
+     * @throws IllegalArgumentException when the folder, changes or callback is null.
+     */
+    public static void applyLevel(File worldDirectory, Map<String, String> changes, LevelCallback callback) {
+        if (changes == null) {
+            throw new IllegalArgumentException("The changes are required.");
+        }
+        level(Protocol.ACTION_LEVEL_APPLY, worldDirectory, changes, callback);
+    }
+
+    private static void level(String action, File worldDirectory, Map<String, String> changes,
+                              LevelCallback callback) {
+        if (worldDirectory == null) {
+            throw new IllegalArgumentException("A world folder is required.");
+        }
+        if (callback == null) {
+            throw new IllegalArgumentException("A callback is required.");
+        }
+        Context context = requireContext();
+        String requestId = UUID.randomUUID().toString();
+
+        Intent intent = new Intent(action);
+        intent.setClass(context, SdkConversionService.class);
+        intent.putExtra(Protocol.EXTRA_REQUEST_ID, requestId);
+        intent.putExtra(Protocol.EXTRA_LEVEL_PATH, worldDirectory.getAbsolutePath());
+        if (changes != null) {
+            String[] ids = new String[changes.size()];
+            String[] values = new String[changes.size()];
+            int index = 0;
+            for (Map.Entry<String, String> entry : changes.entrySet()) {
+                ids[index] = entry.getKey();
+                values[index] = entry.getValue();
+                index++;
+            }
+            intent.putExtra(Protocol.EXTRA_LEVEL_IDS, ids);
+            intent.putExtra(Protocol.EXTRA_LEVEL_VALUES, values);
+        }
+        intent.putExtra(Protocol.EXTRA_RECEIVER, new ResultReceiver(mainHandler()) {
+            @Override
+            protected void onReceiveResult(int resultCode, Bundle resultData) {
+                try {
+                    if (resultCode == Protocol.RESULT_LEVEL) {
+                        callback.onResult(LevelBundle.read(resultData.getBundle(Protocol.KEY_LEVEL_INFO)), null);
+                    } else if (resultCode == Protocol.RESULT_FAILED) {
+                        callback.onResult(null, asException(resultData));
+                    }
+                    // STARTED belongs to the shared protocol and carries nothing for a level request.
+                } catch (RuntimeException broken) {
+                    Log.e(TAG, "Level callback threw", broken);
+                }
+            }
+        });
+
+        // Level operations take milliseconds and do not need the foreground: a plain start keeps the
+        // notification away from a screen that is just being browsed.
+        Throwable failure = start(context, intent, false);
+        if (failure != null) {
+            final ChunkBridgeException error = asException(failure);
+            mainHandler().post(() -> {
+                try {
+                    callback.onResult(null, error);
+                } catch (RuntimeException broken) {
+                    Log.e(TAG, "Level callback threw", broken);
+                }
+            });
+        }
+    }
+
+    /** Starts the service, returning the failure instead of throwing so callbacks stay the only error channel. */    private static Throwable start(Context context, Intent intent, boolean foreground) {
         try {
             if (foreground) {
                 context.startForegroundService(intent);

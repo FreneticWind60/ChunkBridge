@@ -2,6 +2,27 @@
 
 **English** | [简体中文](VERSION.zh-CN.md)
 
+## 1.0.1
+
+Adds the world-details API LiteChunk used to reach through the engine directly, so a host app can drop the engine
+module entirely and keep only the SDK.
+
+### What changed
+
+- `ChunkBridge.inspectLevel(File, LevelCallback)` and `ChunkBridge.applyLevel(File, Map<String, String>, LevelCallback)`
+  run in the `:chunkbridge` process and hand back the engine's `LevelInfo` unchanged (`LevelField`, `LevelNote`).
+- Level reads and writes take their own busy flag (`editing`): a running conversion still answers `BUSY`, but a
+  conversion can be started from the `LevelCallback` and vice versa, which is what a details screen does.
+- `LevelInfo` crosses the process boundary as a `Bundle` (`internal/LevelBundle`) because `api` is a plain Java
+  library and cannot implement `Parcelable`.
+- No public API was removed; 1.0.1 is source- and binary-compatible with 1.0.0. The engine payload is unchanged
+  (still `1.21.0`), so the AAR only grows by the new facade methods.
+
+### Consuming it
+
+Both supported ways are documented in the README: published AAR / `mavenLocal`, or a Git submodule with
+`includeBuild` — the latter is how LiteChunk consumes the SDK and it needs no publishing step.
+
 ## 1.0.0
 
 First standalone release of the SDK, split out of the LiteChunk app.

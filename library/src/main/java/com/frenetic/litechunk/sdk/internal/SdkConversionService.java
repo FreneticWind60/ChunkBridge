@@ -27,6 +27,7 @@ import com.frenetic.litechunk.api.ConversionOptions;
 import com.frenetic.litechunk.api.Detection;
 import com.frenetic.litechunk.api.FormatGroup;
 import com.frenetic.litechunk.api.FormatVersion;
+import com.frenetic.litechunk.api.LevelInfo;
 import com.frenetic.litechunk.api.ProgressListener;
 import com.frenetic.litechunk.sdk.ChunkBridgeException;
 import com.frenetic.litechunk.sdk.ErrorCode;
@@ -37,6 +38,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
@@ -81,12 +84,13 @@ public final class SdkConversionService extends Service {
     private PowerManager.WakeLock wakeLock;
 
     /**
-     * A conversion holds the engine for minutes and can be cancelled by killing the process; a detection only
-     * needs a few seconds. Keeping the two flags apart means "detect, then convert from the callback" works,
-     * while a second conversion is still refused instead of queued behind the first.
+     * A conversion holds the engine for minutes and can be cancelled by killing the process; a detection or a
+     * {@code level.dat} read/write only needs a few seconds. Keeping the flags apart means "detect, then convert
+     * from the callback" works, while a second conversion is still refused instead of queued behind the first.
      */
     private volatile boolean converting;
     private volatile boolean detecting;
+    private volatile boolean editing;
     private volatile boolean cancelled;
     private volatile String currentRequestId;
     private volatile ResultReceiver currentReceiver;
@@ -117,6 +121,8 @@ public final class SdkConversionService extends Service {
             return START_NOT_STICKY;
         }
         boolean conversion = Protocol.ACTION_CONVERT.equals(intent.getAction());
+        boolean level = Protocol.ACTION_LEVEL_INSPECT.equals(intent.getAction())
+                || Protocol.ACTION_LEVEL_APPLY.equals(intent.getAction());
         // Any incoming request keeps the service alive: the idle stop is only a linger, not a verdict.
         main.removeCallbacks(idleStop);
         if (conversion) {
@@ -128,8 +134,15 @@ public final class SdkConversionService extends Service {
                 return START_NOT_STICKY;
             }
             converting = true;
+        } else if (level) {
+            if (converting || detecting || editing) {
+                sendFailure(job, new ChunkBridgeException(ErrorCode.BUSY,
+                        "The conversion engine is still busy. Read the world details again once it is idle."));
+                return START_NOT_STICKY;
+            }
+            editing = true;
         } else {
-            if (converting || detecting) {
+            if (converting || detecting || editing) {
                 sendFailure(job, new ChunkBridgeException(ErrorCode.BUSY,
                         "The conversion engine is still busy. Detect again once it is idle."));
                 return START_NOT_STICKY;
@@ -139,7 +152,9 @@ public final class SdkConversionService extends Service {
         currentRequestId = job.requestId;
         currentReceiver = job.receiver;
         cancelled = false;
-        Log.i(TAG, (conversion ? "Starting conversion " : "Starting detection ") + job.requestId);
+        Log.i(TAG, (conversion ? "Starting conversion "
+                : level ? "Starting level " + (job.levelApply ? "write " : "read ") : "Starting detection ")
+                + job.requestId);
         try {
             executor.execute(() -> run(job));
         } catch (RejectedExecutionException stopping) {
@@ -160,7 +175,7 @@ public final class SdkConversionService extends Service {
         // request). Its caller would otherwise wait forever for a callback that cannot come.
         ResultReceiver receiver = currentReceiver;
         String requestId = currentRequestId;
-        if ((converting || detecting) && receiver != null && requestId != null) {
+        if ((converting || detecting || editing) && receiver != null && requestId != null) {
             Bundle data = bundleWithRequestId(requestId);
             data.putString(Protocol.KEY_ERROR_CODE, ErrorCode.CANCELLED.name());
             data.putString(Protocol.KEY_ERROR_MESSAGE,
@@ -193,6 +208,13 @@ public final class SdkConversionService extends Service {
             ChunkerEngine engine = EngineProvider.obtain(this);
             engine.setConcurrency(MemoryPlan.threads());
             engine.setLeanMode(job.lean || MemoryPlan.leanForced());
+
+            if (job.level) {
+                // level.dat work touches a folder the caller already unpacked; it needs no staging area and no
+                // wake lock, and must not leave a job directory behind.
+                level(job, engine);
+                return;
+            }
 
             workspace = JobWorkspace.create(this, job.requestId);
             sendStarted(job);
@@ -238,6 +260,11 @@ public final class SdkConversionService extends Service {
                 currentRequestId = null;
                 currentReceiver = null;
             }
+            if (job.level) {
+                editing = false;
+                currentRequestId = null;
+                currentReceiver = null;
+            }
             Log.i(TAG, "Job finished " + job.requestId);
             requestIdleStop();
         }
@@ -255,7 +282,7 @@ public final class SdkConversionService extends Service {
     }
 
     private void stopWhenIdle() {
-        if (converting || detecting) {
+        if (converting || detecting || editing) {
             return;
         }
         Log.i(TAG, "Idle, stopping the service");
@@ -726,6 +753,31 @@ public final class SdkConversionService extends Service {
         wakeLock = null;
     }
 
+    private void level(Job job, ChunkerEngine engine) throws ChunkBridgeException {
+        File worldRoot = new File(job.levelPath);
+        try {
+            if (job.levelApply) {
+                Map<String, String> changes = new LinkedHashMap<>();
+                String[] ids = job.levelIds;
+                String[] values = job.levelValues;
+                int count = Math.min(ids == null ? 0 : ids.length, values == null ? 0 : values.length);
+                for (int index = 0; index < count; index++) {
+                    changes.put(ids[index], values[index]);
+                }
+                engine.applyLevelChanges(worldRoot, changes);
+            }
+            LevelInfo info = engine.inspectLevel(worldRoot);
+            Bundle data = new Bundle();
+            data.putBundle(Protocol.KEY_LEVEL_INFO, LevelBundle.write(info));
+            // Clear the flag before delivering, like detection does: a screen may convert right from the callback.
+            editing = false;
+            send(job, Protocol.RESULT_LEVEL, data);
+        } catch (Throwable failure) {
+            throw new ChunkBridgeException(ErrorCode.WORLD_NOT_FOUND,
+                    "The world details could not be read.", Extractor.describe(failure), failure);
+        }
+    }
+
     // ---------------------------------------------------------------- job extras
 
     /** Everything the service needs, read once from the start intent. */
@@ -744,6 +796,11 @@ public final class SdkConversionService extends Service {
         String title;
         String text;
         boolean detection;
+        boolean level;
+        boolean levelApply;
+        String levelPath;
+        String[] levelIds;
+        String[] levelValues;
         ResultReceiver receiver;
 
         static Job from(Intent intent) {
@@ -765,6 +822,12 @@ public final class SdkConversionService extends Service {
             job.title = intent.getStringExtra(Protocol.EXTRA_NOTIFICATION_TITLE);
             job.text = intent.getStringExtra(Protocol.EXTRA_NOTIFICATION_TEXT);
             job.detection = Protocol.ACTION_DETECT.equals(intent.getAction());
+            job.level = Protocol.ACTION_LEVEL_INSPECT.equals(intent.getAction())
+                    || Protocol.ACTION_LEVEL_APPLY.equals(intent.getAction());
+            job.levelApply = Protocol.ACTION_LEVEL_APPLY.equals(intent.getAction());
+            job.levelPath = intent.getStringExtra(Protocol.EXTRA_LEVEL_PATH);
+            job.levelIds = intent.getStringArrayExtra(Protocol.EXTRA_LEVEL_IDS);
+            job.levelValues = intent.getStringArrayExtra(Protocol.EXTRA_LEVEL_VALUES);
             job.receiver = receiverOf(intent);
             return job;
         }
