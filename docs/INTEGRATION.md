@@ -218,7 +218,10 @@ The bundled `sample` app does all of the above and is the reference integration.
 
 ## Using a composite build (git submodule)
 
-LiteChunk does not consume a published AAR. It adds this repository as a submodule and includes the build directly:
+Most host apps should consume the released artifacts instead: see README → *From the GitHub release*. A composite
+build is for working on the SDK and the app at the same time, or for tracking engine changes before a release.
+
+LiteChunk does exactly that: it adds this repository as a submodule and includes the build directly:
 
 ```bash
 git submodule add https://github.com/FreneticWind60/ChunkBridge.git chunkbridge

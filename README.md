@@ -81,14 +81,45 @@ dependencies {
 }
 ```
 
-### From a published repository
+### From the GitHub release (no build required)
 
-```bash
-./gradlew :api:publish :library:publish                    # writes build/repo
-./gradlew :api:publishToMavenLocal :library:publishReleasePublicationToMavenLocal
+Every release publishes ready-to-use artifacts on
+[GitHub Releases](https://github.com/FreneticWind60/ChunkBridge/releases). Download
+`chunkbridge-sdk-<version>-maven-repo.zip`, unzip it somewhere in your project, and point a repository at it:
+
+| Asset | Use |
+| --- | --- |
+| `chunkbridge-sdk-1.0.1-maven-repo.zip` | Local Maven repository (AAR + `api` JAR + POMs + sources) |
+| `chunkbridge-1.0.1.aar` | Single-AAR install, see below |
+| `api-1.0.1.jar` | Required next to the single AAR |
+| `chunkbridge-1.0.1-sources.jar`, `api-1.0.1-sources.jar` | Source attachments for the IDE |
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("libs/chunkbridge-maven") }   // the unzipped repository zip
+    }
+}
+
+// app/build.gradle.kts
+dependencies {
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+}
 ```
 
-Point your repository at the generated `build/repo` directory, or copy the artifacts into your own repository.
+The repository zip carries both `com.frenetic.chunkbridge:chunkbridge` (AAR) and
+`com.frenetic.chunkbridge:api` (JAR), so the transitive `api` dependency resolves without network access.
+
+### From a self-built repository
+
+```bash
+./gradlew :api:publishMavenPublicationToLocalBuildRepository :library:publishReleasePublicationToLocalBuildRepository
+```
+
+That writes the same layout into `build/repo`; point a repository at it, or copy the artifacts into your own.
 
 ### From a single AAR file
 

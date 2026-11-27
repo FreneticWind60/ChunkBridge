@@ -77,14 +77,44 @@ dependencies {
 }
 ```
 
-### 从已发布的仓库
+### 从 GitHub Release 安装（不用自己构建）
 
-```bash
-./gradlew :api:publish :library:publish                    # 输出到 build/repo
-./gradlew :api:publishToMavenLocal :library:publishReleasePublicationToMavenLocal
+每次发版都会把现成产物传到 [GitHub Releases](https://github.com/FreneticWind60/ChunkBridge/releases)。下载
+`chunkbridge-sdk-<版本>-maven-repo.zip`，解压到工程里，再把本地仓库指过去即可：
+
+| 产物 | 用途 |
+| --- | --- |
+| `chunkbridge-sdk-1.0.1-maven-repo.zip` | 本地 Maven 仓库（AAR + `api` JAR + POM + sources） |
+| `chunkbridge-1.0.1.aar` | 单 AAR 安装方式，见下一节 |
+| `api-1.0.1.jar` | 单 AAR 安装时必须一并加入 |
+| `chunkbridge-1.0.1-sources.jar`、`api-1.0.1-sources.jar` | 给 IDE 挂源码 |
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url = uri("libs/chunkbridge-maven") }   // 解压后的仓库目录
+    }
+}
+
+// app/build.gradle.kts
+dependencies {
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+}
 ```
 
-把仓库指向生成的 `build/repo`，或把产物拷进你自己的仓库。
+仓库 zip 里同时有 `com.frenetic.chunkbridge:chunkbridge`（AAR）和 `com.frenetic.chunkbridge:api`（JAR），
+所以传递依赖的 `api` 不需要联网也能解析。
+
+### 从自建仓库安装
+
+```bash
+./gradlew :api:publishMavenPublicationToLocalBuildRepository :library:publishReleasePublicationToLocalBuildRepository
+```
+
+产物同样落在 `build/repo`，把仓库指向它，或把产物拷进你自己的仓库。
 
 ### 只用一个 AAR 文件
 
