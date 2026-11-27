@@ -114,6 +114,11 @@ public final class BedrockToJava {
         }
         List<String> definitions = actor.getListValues("definitions", StringTag.class, null);
 
+        if (ArmorStandPoses.ARMOR_STAND.equals(identifier)) {
+            // Bedrock stores one index into thirteen baked poses; Java wants the six parts spelled out.
+            ArmorStandPoses.toJava(javaEntity, actor);
+        }
+
         JavaEntityStates.apply(javaEntity, actor, identifier, version, source, target);
         JavaEntityEquipment.apply(javaEntity, actor, source, target, version.isGreaterThanOrEqual(1, 21, 5));
         JavaEntityVariants.apply(javaEntity, actor, identifier, definitions);

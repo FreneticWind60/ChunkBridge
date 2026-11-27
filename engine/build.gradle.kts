@@ -104,6 +104,17 @@ tasks.register<JavaExec>("reverseSmoke") {
     notCompatibleWithConfigurationCache("Ad-hoc verification task")
 }
 
+// Checks the armor stand pose table against the published Java rotations, and the Java -> Bedrock -> Java cycle.
+// Usage: gradlew :engine:poseSmoke
+tasks.register<JavaExec>("poseSmoke") {
+    group = "verification"
+    description = "Checks the armor stand pose mapping in isolation."
+    dependsOn(tasks.named("testClasses"))
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.frenetic.litechunk.entities.PoseSmoke")
+    notCompatibleWithConfigurationCache("Ad-hoc verification task")
+}
+
 // Prints the block entities (and their Command field) of a Bedrock world, so command block conversion can be checked
 // without launching the game. Usage: gradlew :engine:blockEntityDump --args="<worldDir>"
 tasks.register<JavaExec>("blockEntityDump") {

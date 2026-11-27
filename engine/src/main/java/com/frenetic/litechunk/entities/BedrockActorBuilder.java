@@ -190,6 +190,11 @@ final class BedrockActorBuilder {
             actor.put("Fuse", (short) intValue(javaEntity, "fuse", 80));
         } else if (END_CRYSTAL.equals(identifier)) {
             actor.put("ShowBottom", (byte) (isTrue(javaEntity, "ShowBottom") ? 1 : 0));
+        } else if (ArmorStandPoses.ARMOR_STAND.equals(identifier)) {
+            // Bedrock cannot hold six freely rotated parts, only one of thirteen baked poses, so the closest is
+            // written and the Java angles are dropped. Without this an armor stand arrives in its default pose,
+            // which for a display world means every figure in it suddenly stands the same way.
+            ArmorStandPoses.toBedrock(actor, javaEntity);
         } else if (COMMAND_BLOCK_MINECART.equals(identifier)) {
             // Bedrock keeps the command on the actor itself, not in a block entity. Dropping it left a minecart that
             // rolled but never ran anything - which is how a particle command stored in one of these went missing.
