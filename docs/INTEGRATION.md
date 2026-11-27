@@ -239,7 +239,7 @@ includeBuild(file(chunkbridgeDir)) {
 }
 ```
 
-The host app then depends on the normal coordinates (`com.frenetic.chunkbridge:chunkbridge:1.0.1`); Gradle replaces
+The host app then depends on the normal coordinates (`com.frenetic.chunkbridge:chunkbridge:1.0.2`); Gradle replaces
 them with the included project, so the version string only has to be a version that exists. Working on both
 repositories at once is `-Pchunkbridge.sdk.dir=../ChunkBridge` instead of a submodule checkout.
 

@@ -75,9 +75,9 @@ mavenLocal()
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.2")
     // Pulled in transitively; listed here only for clarity.
-    // implementation("com.frenetic.chunkbridge:api:1.0.1")
+    // implementation("com.frenetic.chunkbridge:api:1.0.2")
 }
 ```
 
@@ -89,10 +89,10 @@ Every release publishes ready-to-use artifacts on
 
 | Asset | Use |
 | --- | --- |
-| `chunkbridge-sdk-1.0.1-maven-repo.zip` | Local Maven repository (AAR + `api` JAR + POMs + sources) |
-| `chunkbridge-1.0.1.aar` | Single-AAR install, see below |
-| `api-1.0.1.jar` | Required next to the single AAR |
-| `chunkbridge-1.0.1-sources.jar`, `api-1.0.1-sources.jar` | Source attachments for the IDE |
+| `chunkbridge-sdk-1.0.2-maven-repo.zip` | Local Maven repository (AAR + `api` JAR + POMs + sources) |
+| `chunkbridge-1.0.2.aar` | Single-AAR install, see below |
+| `api-1.0.2.jar` | Required next to the single AAR |
+| `chunkbridge-1.0.2-sources.jar`, `api-1.0.2-sources.jar` | Source attachments for the IDE |
 
 ```kotlin
 // settings.gradle.kts
@@ -106,7 +106,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.2")
 }
 ```
 
@@ -130,7 +130,7 @@ host class loader before the engine dex is attached:
 ```kotlin
 dependencies {
     implementation(files("libs/library-release.aar"))
-    implementation(files("libs/api-1.0.1.jar"))   // com.frenetic.chunkbridge:api:1.0.1
+    implementation(files("libs/api-1.0.2.jar"))   // com.frenetic.chunkbridge:api:1.0.2
 }
 ```
 
@@ -157,7 +157,7 @@ includeBuild("chunkbridge") {
 ```kotlin
 // app/build.gradle.kts — the version is ignored, the included build wins
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.2")
 }
 ```
 

@@ -71,9 +71,9 @@ mavenLocal()
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.2")
     // 会通过传递依赖引入，这里只是显式列出
-    // implementation("com.frenetic.chunkbridge:api:1.0.1")
+    // implementation("com.frenetic.chunkbridge:api:1.0.2")
 }
 ```
 
@@ -84,10 +84,10 @@ dependencies {
 
 | 产物 | 用途 |
 | --- | --- |
-| `chunkbridge-sdk-1.0.1-maven-repo.zip` | 本地 Maven 仓库（AAR + `api` JAR + POM + sources） |
-| `chunkbridge-1.0.1.aar` | 单 AAR 安装方式，见下一节 |
-| `api-1.0.1.jar` | 单 AAR 安装时必须一并加入 |
-| `chunkbridge-1.0.1-sources.jar`、`api-1.0.1-sources.jar` | 给 IDE 挂源码 |
+| `chunkbridge-sdk-1.0.2-maven-repo.zip` | 本地 Maven 仓库（AAR + `api` JAR + POM + sources） |
+| `chunkbridge-1.0.2.aar` | 单 AAR 安装方式，见下一节 |
+| `api-1.0.2.jar` | 单 AAR 安装时必须一并加入 |
+| `chunkbridge-1.0.2-sources.jar`、`api-1.0.2-sources.jar` | 给 IDE 挂源码 |
 
 ```kotlin
 // settings.gradle.kts
@@ -101,7 +101,7 @@ dependencyResolutionManagement {
 
 // app/build.gradle.kts
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.2")
 }
 ```
 
@@ -124,7 +124,7 @@ dependencies {
 ```kotlin
 dependencies {
     implementation(files("libs/library-release.aar"))
-    implementation(files("libs/api-1.0.1.jar"))   // com.frenetic.chunkbridge:api:1.0.1
+    implementation(files("libs/api-1.0.2.jar"))   // com.frenetic.chunkbridge:api:1.0.2
 }
 ```
 
@@ -151,7 +151,7 @@ includeBuild("chunkbridge") {
 ```kotlin
 // app/build.gradle.kts —— 版本号会被忽略，复合构建里的工程优先
 dependencies {
-    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.1")
+    implementation("com.frenetic.chunkbridge:chunkbridge:1.0.2")
 }
 ```
 

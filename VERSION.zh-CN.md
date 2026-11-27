@@ -2,6 +2,24 @@
 
 [English](VERSION.md) | **简体中文**
 
+## 1.0.2
+
+补上两个转换缺口，都不在方块数据上，而在存档详情这一侧。
+
+### 变化
+
+- `DataVersion`、`StorageVersion`、`NetworkVersion` 可以通过 `applyLevel` 写入。它们以前是只读的，理由是不升级
+  区块数据——这一点仍然成立，字段也保留了解释性提示。`StorageVersion` 在基岩版文件头里而不是 NBT 里，所以写入
+  路径在读回校验时会重新读文件头。`DataVersion` 只对 Java 版生效，另外两个只对基岩版生效，写错版本会被忽略。
+- 盔甲架姿势双向转换。基岩版只存十三个预烘焙姿势中的一个（`Pose.PoseIndex`），Java 是六个部位各自旋转，所以
+  写入时取角度距离最近的姿势；转回 Java 时会补上 `ShowArms`——不补的话姿势是对的，但两条手臂不会显示。
+- 没有删除或改变公开 API 的形状；1.0.2 与 1.0.1 源码与二进制兼容。引擎负载仍然报告 `1.21.0`。
+
+### 验证
+
+`:engine:levelTest` 在两种版本上写入并读回 `DataVersion` / `StorageVersion`，`:engine:poseSmoke` 覆盖十三个
+姿势、往返与 `ShowArms`；两者都在真机上用一个专门造的、含十三个盔甲架的世界验证过（Java 1.20.1 → 基岩版 → Java）。
+
 ## 1.0.1
 
 补上存档详情所需的 level.dat 读写接口。LiteChunk 以前直接调引擎做这件事，现在可以直接去掉引擎模块、只留 SDK。

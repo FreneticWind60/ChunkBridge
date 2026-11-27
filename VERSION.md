@@ -2,6 +2,29 @@
 
 **English** | [简体中文](VERSION.zh-CN.md)
 
+## 1.0.2
+
+Two conversion gaps, both on the world-details side rather than the block data.
+
+### What changed
+
+- `DataVersion`, `StorageVersion` and `NetworkVersion` are writable through `applyLevel`. They used to be exposed as
+  read-only on the grounds that changing them does not upgrade the chunk data — which is still true, and the fields
+  keep their explanatory hint. `StorageVersion` lives in the Bedrock file header rather than in the NBT, so the write
+  path re-reads the header when verifying. `DataVersion` is accepted for Java worlds and the other two for Bedrock
+  ones; a field sent to the wrong edition is ignored.
+- Armor stand poses convert in both directions. Bedrock stores one of thirteen baked poses (`Pose.PoseIndex`), Java
+  stores six independently rotated parts, so the nearest pose by angle distance is written and `ShowArms` is set when
+  coming back — without it the stand would arrive with the right pose and no arms.
+- No public API was removed or changed in shape; 1.0.2 is source- and binary-compatible with 1.0.1. The engine payload
+  still reports `1.21.0`.
+
+### Verification
+
+`:engine:levelTest` writes and reads back `DataVersion` / `StorageVersion` on both editions, `:engine:poseSmoke`
+covers the thirteen poses, the round trip and `ShowArms`, and both were checked on a device against a purpose-built
+world with thirteen armor stands (Java 1.20.1 → Bedrock → Java).
+
 ## 1.0.1
 
 Adds the world-details API LiteChunk used to reach through the engine directly, so a host app can drop the engine
