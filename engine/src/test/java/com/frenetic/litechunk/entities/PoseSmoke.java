@@ -75,6 +75,18 @@ public final class PoseSmoke {
             javaEntity.put("identifier", "minecraft:armor_stand");
             ArmorStandPoses.toJava(javaEntity, actor);
 
+            // Arms are not part of the pose table: Bedrock armor stands always show them, Java hides them unless the
+            // entity says otherwise, so the flag has to be set here or the stand arrives armless (the pose still
+            // looks right from the legs, which is exactly how this bug hid).
+            Object arms = javaEntity.contains("ShowArms")
+                    ? javaEntity.get("ShowArms").getBoxedValue()
+                    : null;
+            if (arms instanceof Number flag && flag.intValue() == 1) {
+                pass("index " + index + " keeps the arms visible on the Java side");
+            } else {
+                fail("index " + index + " wrote ShowArms = " + arms);
+            }
+
             Tag<?> written = javaEntity.get("Pose");
             if (!(written instanceof CompoundTag)) {
                 fail("index " + index + " wrote no Java pose");

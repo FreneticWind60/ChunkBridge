@@ -143,6 +143,12 @@ final class ArmorStandPoses {
      * @param actor      the Bedrock actor it came from.
      */
     static void toJava(CompoundTag javaEntity, CompoundTag actor) {
+        // Bedrock armor stands always have arms and have no flag for it; Java hides them unless ShowArms is set, so a
+        // plain conversion would keep the pose but lose both arms. Setting it unconditionally is the closer match:
+        // the arrow only ever points that way (a Java stand with hidden arms becomes a Bedrock one with arms and can
+        // never come back as hidden, because Bedrock has nowhere to record the choice).
+        javaEntity.put("ShowArms", (byte) 1);
+
         Tag<?> raw = actor.get("Pose");
         if (!(raw instanceof CompoundTag pose)) {
             return;
