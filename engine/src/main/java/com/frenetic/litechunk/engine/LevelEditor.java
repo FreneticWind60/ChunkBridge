@@ -28,8 +28,11 @@ import java.util.Map;
  * The allow list is the whole safety story. Writing an arbitrary NBT node from a phone invites a byte/int mismatch or
  * a list where the game expects a compound, and the resulting world is indistinguishable from a corrupt conversion.
  * Every editable field below is therefore type-checked and, where the value space is small, restricted to an enum.
- * Fields that look editable but cannot be fixed by editing the header ({@code DataVersion}, {@code StorageVersion})
- * are shown read-only with an explanation, because raising them does not upgrade the chunk data behind them.
+ * <p>
+ * The three version numbers ({@code DataVersion}, {@code StorageVersion}, {@code NetworkVersion}) are the exception to
+ * "safe to touch": they are writable because a save pulled out of a broken pack or a beta is sometimes only openable
+ * after faking a version, but none of them changes the chunk data behind it, and a wrong value is indistinguishable
+ * from a corrupt world. They are therefore editable with a hint that says so, and the app warns before saving one.
  */
 final class LevelEditor {
 
@@ -39,7 +42,8 @@ final class LevelEditor {
     private final File levelDat;
     private final boolean bedrock;
     private final CompoundTag data;
-    private final int storageVersion;
+    /** Not final: the header is one of the fields the user may edit, see {@link #writeValue}. */
+    private int storageVersion;
 
     private LevelEditor(File directory, File levelDat, boolean bedrock, CompoundTag data, int storageVersion) {
         this.directory = directory;
@@ -291,10 +295,12 @@ final class LevelEditor {
         fields.add(whole("SpawnZ", "出生点 Z", "Spawn Z", LevelField.KIND_INT));
         fields.add(whole("DayTime", "世界时间", "Time of day", LevelField.KIND_LONG));
         fields.add(new LevelField("DataVersion", "数据版本", "Data version / DataVersion",
-                Integer.toString((int) number("DataVersion", -1)), LevelField.KIND_READ_ONLY, null, null, null,
-                "只改这个数字不会升级区块数据。降级打开旧存档仍需完整转换。",
-                "Changing this number does not upgrade the chunk data. Opening an older save still needs a full "
-                        + "conversion.",
+                Integer.toString((int) number("DataVersion", -1)), LevelField.KIND_INT, null, null, null,
+                "只改这个数字不会升级区块数据：把高版本存档改成低版本，游戏会用旧格式读新数据，通常直接报错。"
+                        + "需要换版本请走完整转换。",
+                "Changing this number does not upgrade the chunk data. Pointing an old DataVersion at newer chunks "
+                        + "makes the game read them with the wrong format, which usually fails outright. Use a full "
+                        + "conversion to change versions.",
                 LevelField.HINT_DATA_VERSION));
         return fields;
     }
@@ -325,14 +331,16 @@ final class LevelEditor {
         fields.add(whole("SpawnZ", "出生点 Z", "Spawn Z", LevelField.KIND_INT));
         fields.add(whole("Time", "世界时间", "Time of day", LevelField.KIND_LONG));
         fields.add(new LevelField("StorageVersion", "存储版本（文件头）", "Storage version / header",
-                Integer.toString(storageVersion), LevelField.KIND_READ_ONLY, null, null, null,
-                "改高不会升级区块格式，反而可能让游戏判定存档损坏。",
-                "Raising it does not upgrade the chunk format and can make the game reject the world.",
+                Integer.toString(storageVersion), LevelField.KIND_INT, null, null, null,
+                "这个数字在文件头里，不在 NBT 里。改高不会升级区块格式，反而可能让游戏判定存档损坏。",
+                "This number lives in the file header, not in the NBT. Raising it does not upgrade the chunk format "
+                        + "and can make the game reject the world.",
                 LevelField.HINT_STORAGE_VERSION));
         fields.add(new LevelField("NetworkVersion", "协议版本", "Protocol version / NetworkVersion",
-                Integer.toString((int) number("NetworkVersion", -1)), LevelField.KIND_READ_ONLY, null, null, null,
-                "游戏用它判断当前版本是否过旧，与区块格式无关。",
-                "The game uses this to decide whether it is too old; it is unrelated to the chunk format.",
+                Integer.toString((int) number("NetworkVersion", -1)), LevelField.KIND_INT, null, null, null,
+                "游戏用它判断当前版本是否过旧，与区块格式无关。改它不会让旧客户端读新存档。",
+                "The game uses this to decide whether it is too old; it is unrelated to the chunk format. Changing it "
+                        + "does not let an older client read a newer world.",
                 LevelField.HINT_NETWORK_VERSION));
         return fields;
     }
@@ -451,14 +459,18 @@ final class LevelEditor {
                 continue;
             }
             String expected = normalise(id, changes.get(id));
-            String actual = normalise(id, readBack(written, id));
+            String actual = normalise(id, readBack(file, written, id));
             if (expected != null && !expected.equals(actual)) {
                 throw new IOException("写入校验失败：「" + id + "」应为 " + expected + "，实际为 " + actual);
             }
         }
     }
 
-    private String readBack(CompoundTag root, String id) {
+    private String readBack(File file, CompoundTag root, String id) throws IOException {
+        if ("StorageVersion".equals(id)) {
+            // The only field that is not in the NBT payload: read the header of the file that was just written.
+            return Integer.toString(readStorageVersion(file));
+        }
         Object value = raw(root, id);
         if (value == null) {
             return "";
@@ -537,6 +549,17 @@ final class LevelEditor {
             case "DayTime":
                 data.put("DayTime", Long.parseLong(value.trim()));
                 return;
+            case "DataVersion":
+                data.put("DataVersion", (int) parseNumber(value, 1, Integer.MAX_VALUE));
+                return;
+            case "NetworkVersion":
+                data.put("NetworkVersion", (int) parseNumber(value, 0, Integer.MAX_VALUE));
+                return;
+            case "StorageVersion":
+                // Not part of the NBT at all: the writer puts this value into the little endian file header, so the
+                // edit is carried by the field and lands when the file is written below.
+                storageVersion = (int) parseNumber(value, 0, Integer.MAX_VALUE);
+                return;
             default:
                 throw new IllegalArgumentException("不允许修改的字段：" + id);
         }
@@ -573,7 +596,11 @@ final class LevelEditor {
             case "allowCommands":
             case "hardcore":
             case "DayTime":
+            case "DataVersion":
                 return !bedrock;
+            case "StorageVersion":
+            case "NetworkVersion":
+                return bedrock;
             default:
                 return false;
         }

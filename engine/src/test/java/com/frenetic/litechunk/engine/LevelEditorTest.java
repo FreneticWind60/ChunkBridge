@@ -119,13 +119,33 @@ public final class LevelEditorTest {
         LevelInfo third = LevelEditor.open(work).inspect();
         failures += expect("LevelName", "第二次改名", third.field("LevelName"));
 
-        // Nothing outside the allow list may be written.
-        LevelEditor.open(work).apply(Map.of("DataVersion", "9999", "Player", "nope"));
-        LevelInfo guarded = LevelEditor.open(work).inspect();
-        LevelField dataVersion = guarded.field("DataVersion");
-        if (dataVersion != null && "9999".equals(dataVersion.value)) {
-            System.out.println("FAIL  DataVersion was written although it is read-only");
+        // The version numbers are writable on purpose, and everything else is still refused. Both halves matter: a
+        // writable version number the writer silently ignores is as broken as an allow list that lets Player through.
+        LevelField versionField = info.field("DataVersion");
+        if (versionField == null || !versionField.isEditable()) {
+            versionField = info.field("StorageVersion");
+        }
+        if (versionField == null || !versionField.isEditable()) {
+            versionField = info.field("NetworkVersion");
+        }
+        if (versionField == null || !versionField.isEditable()) {
+            System.out.println("FAIL  no editable version field to test");
             failures++;
+        } else {
+            String id = versionField.id;
+            Map<String, String> guardedEdit = new LinkedHashMap<>();
+            guardedEdit.put(id, "9999");
+            guardedEdit.put("Player", "nope");
+            LevelEditor.open(work).apply(guardedEdit);
+            LevelInfo guarded = LevelEditor.open(work).inspect();
+            failures += expect(id, "9999", guarded.field(id));
+            LevelField player = guarded.field("Player");
+            if (player != null && "nope".equals(player.value)) {
+                System.out.println("FAIL  Player was written although it is not on the allow list");
+                failures++;
+            } else {
+                System.out.println("ok    Player stayed outside the allow list");
+            }
         }
 
         System.out.println(failures == 0 ? "\nALL CHECKS PASSED" : "\n" + failures + " CHECK(S) FAILED");
