@@ -121,7 +121,7 @@ afterEvaluate {
                 pom {
                     name.set("ChunkBridge SDK")
                     description.set("Java <=> Bedrock Minecraft world conversion for Android apps.")
-                    url.set("https://github.com/LiteChunk/LiteChunk")
+                    url.set("https://github.com/FreneticWind60/ChunkBridge")
                     licenses {
                         license {
                             name.set("MIT License")
