@@ -261,6 +261,11 @@ ChunkBridge.applyLevel(worldDirectory, changes, (info, error) -> {
 `worldDirectory` 必须是含 `level.dat` 的目录；从 `.zip` / `.mcworld` 里取出、改完再写回压缩包由调用方负责
 （LiteChunk 用 `Archive.rewrite`）。值一律是字符串，因为引擎只暴露一份允许键列表，并按游戏期望的类型写入。
 
+`DataVersion`、`StorageVersion`、`NetworkVersion` 也可以写，但它们是**例外**：只改声明不升级区块数据，
+写入的值不匹配时游戏可能直接判定存档损坏，宿主应像 LiteChunk 一样在保存前给出警告。`StorageVersion` 位于
+文件头而不是 NBT（基岩版），写入后引擎读回文件头校验；`DataVersion` 只对 Java 版生效，`StorageVersion` 与
+`NetworkVersion` 只对基岩版生效，写错版本会被忽略并在返回值里体现为未改动。
+
 ## 错误码
 
 `ChunkBridgeException.getCode()` 返回 `ErrorCode`：

@@ -93,6 +93,9 @@ First standalone release of the SDK, split out of the LiteChunk app.
   a larger heap reduces retries).
 - `:engine:roundTrip` needs external Chunker fixtures and skips cleanly when they are absent; `:engine:engineDex` is a
   `JavaExec` task, so Gradle discards its configuration cache entry (the build still succeeds).
+- Armor stand poses are a **nearest match**: Bedrock stores one of thirteen baked poses (`Pose.PoseIndex`) while Java
+  keeps six independently rotated parts, so the closest pose by angle distance is written and the Java angles are not
+  preserved. `:engine:poseSmoke` checks the thirteen canonical rotations, out-of-range indices and the round trip.
 
 ### Verification
 

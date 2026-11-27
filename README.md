@@ -274,6 +274,13 @@ ChunkBridge.applyLevel(worldDirectory, changes, (info, error) -> {
 it back is the caller's job (LiteChunk does it with `Archive.rewrite`). Values are plain strings because the engine
 only exposes an allow list of keys and writes each one with the type the game expects.
 
+`DataVersion`, `StorageVersion` and `NetworkVersion` are writable too, and they are the exception to "safe to touch":
+they only change the declaration, not the chunk data, and a value that does not match can make the game call the save
+corrupt, so a host should warn before saving one the way LiteChunk does. `StorageVersion` lives in the file header
+rather than in the NBT, so the engine re-reads the header to verify it; `DataVersion` only applies to Java worlds and
+`StorageVersion` / `NetworkVersion` only to Bedrock ones, and a field sent to the wrong edition is ignored rather than
+written.
+
 ## Errors
 
 `ChunkBridgeException.getCode()` returns an `ErrorCode`:

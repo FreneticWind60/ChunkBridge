@@ -80,6 +80,9 @@ SDK 的首个独立版本，从 LiteChunk 应用中拆分而来。
   减少重试）。
 - `:engine:roundTrip` 需要外部 Chunker fixture，缺失时会干净跳过；`:engine:engineDex` 是 `JavaExec` 任务，
   Gradle 会丢弃其配置缓存条目（构建仍然成功）。
+- 盔甲架姿势是**近似**映射：基岩版只存 13 个烘焙姿势（`Pose.PoseIndex`），Java 是 6 个部位任意旋转，
+  转换时取角度距离最近的姿势，Java 侧的原始角度不保留。`:engine:poseSmoke` 校验这 13 个姿势的既定角度、
+  越界索引与往返一致性。
 
 ### 验证情况
 
